@@ -2,7 +2,7 @@
 # File: main.yml - Main tasks for Nomad
 
 - name: Include checks/asserts
-  include: asserts.yml
+  include_tasks: asserts.yml
 
 - name: Include OS variables
   include_vars: "{{ ansible_os_family }}.yml"
@@ -25,26 +25,26 @@
     nomad_node_role: "{{ nomad_node_role }}"
 
 - name: Include user and group settings
-  include: user_group.yml
+  include_tasks: user_group.yml
   when:
     - not (nomad_install_from_repo | bool)
 
 - name: Include Docker tasks
-  include: docker.yml
+  include_tasks: docker.yml
   when: nomad_docker_enable | bool
 
 - name: Install OS packages and Nomad - locally
-  include: install.yml
+  include_tasks: install.yml
   when:
     - not (nomad_install_from_repo | bool)
 
 - name: Install OS packages and Nomad - from the repository
-  include: install.yml
+  include_tasks: install_linux_repo.yml
   when:
     - nomad_install_from_repo | bool
 
 - name: Disable SELinux (RHEL)
-  include: selinux.yml
+  include_tasks: selinux.yml
   when: ansible_os_family == "RedHat"
 
 - name: Create directories
@@ -58,7 +58,7 @@
     - "{{ nomad_plugin_dir }}"
 
 - name: Install Podman plugin
-  include: install_podman.yml
+  include_tasks: install_podman.yml
   when: nomad_podman_enable | bool
 
 - name: Create config directory
@@ -80,7 +80,7 @@
     - restart nomad
 
 - name: Get Gossip Key
-  include: get_gossip_key.yml
+  include_tasks: get_gossip_key.yml
   when:
     - _nomad_node_server | bool
     - nomad_encrypt_enable | bool
@@ -153,7 +153,7 @@
     - restart nomad
 
 - name: Host volume
-  include: host_volume.yml
+  include_tasks: host_volume.yml
 
 - name: SYSV init script
   template:
