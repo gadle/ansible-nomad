@@ -31,6 +31,9 @@ nomad_skip_ensure_all_hosts: "{{ lookup('env','NOMAD_SKIP_ENSURE_ALL_HOSTS') | d
 ## Config Purge
 nomad_allow_purge_config: "{{ lookup('env','NOMAD_ALLOW_PURGE_CONFIG') | default('false', true) }}"
 
+## Install method
+nomad_install_from_repo: false
+
 ### Package
 nomad_version: "{{ lookup('env','NOMAD_VERSION') | default('1.0.4', true) }}"
 nomad_architecture_map:
@@ -64,10 +67,12 @@ nomad_systemd_template: nomad_systemd.service.j2
 nomad_systemd_unit_path: /lib/systemd/system
 
 ### System user and group
+# Servers should be run with the lowest possible permissions; Clients should be run as root
+# See https://www.nomadproject.io/docs/operations/nomad-agent#permissions
 nomad_manage_user: true
-nomad_user: "root"
+nomad_user: "{{ 'root' if nomad_node_role == 'client' else 'nomad' }}"
 nomad_manage_group: false
-nomad_group: "bin"
+nomad_group: "{{ 'root' if nomad_node_role == 'client' else 'nomad' }}"
 
 ### Nomad settings
 nomad_datacenter: "dc1"

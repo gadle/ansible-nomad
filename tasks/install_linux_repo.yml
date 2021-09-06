@@ -1,0 +1,102 @@
+---
+# File: install_linux_repo.yml - package installation tasks for Nomad
+
+- name: Install OS packages
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ nomad_os_packages }}"
+  tags: installation
+
+- name: Populate service facts
+  service_facts:
+
+- name: Gather the package facts
+  package_facts:
+    manager: auto
+
+- name: Clean up previous nomad data
+  block:
+    - name: Stop service nomad, if running
+      systemd:
+        name: nomad
+        state: stopped
+      when: ansible_facts.services['nomad.service'] is defined
+
+    - name: Remove nomad systemd unit file from previous installation
+      file:
+        path: /usr/lib/systemd/system/nomad.service
+        state: absent
+      notify: systemd daemon reload
+
+    - name: Remove the user 'nomad'
+      user:
+        name: nomad
+        state: absent
+        remove: yes
+
+  when:
+    - "ansible_distribution|lower == 'redhat' or ansible_distribution|lower == 'centos' or \
+        ansible_distribution|lower == 'fedora' or ansible_distribution|lower == 'amazon' or \
+        ansible_distribution|lower == 'debian' or ansible_distribution|lower == 'ubuntu'"
+    - "'nomad' not in ansible_facts.packages"
+
+- name: Install repository
+  block:
+    - name: Add Redhat/CentOS/Fedora/Amazon Linux repository
+      command: "yum-config-manager --add-repo {{ nomad_repo_url }}"
+      args:
+        creates: /etc/yum.repos.d/hashicorp.repo
+      when: "ansible_distribution|lower == 'redhat' or ansible_distribution|lower == 'centos' or \
+            ansible_distribution|lower == 'fedora' or ansible_distribution|lower == 'amazon'"
+
+
+    - name: Add an Apt signing key, uses whichever key is at the URL
+      apt_key:
+        url: https://apt.releases.hashicorp.com/gpg
+        state: present
+      when: ansible_distribution|lower == 'debian' or ansible_distribution|lower == 'ubuntu'
+
+    - name: Add Debian/Ubuntu Linux repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_lsb.codename }} main"
+        state: present
+        update_cache: true
+      when: ansible_distribution|lower == 'debian' or ansible_distribution|lower == 'ubuntu'
+
+- name: Set appropriate package specifier for operating system.
+  set_fact:
+    nomad_package_spec: "{{ 'nomad' ~ separator ~ nomad_version }}"
+  vars:
+    separator: "{{ '=' if ansible_os_family == 'Debian' else '-' }}"
+
+- name: Install nomad package
+  package:
+    name: "{{ nomad_package_spec }}"
+    state: present
+
+- name: Create systemd override directory
+  file:
+    path: /etc/systemd/system/nomad.service.d
+    state: directory
+    mode: '755'
+    owner: root
+    group: root
+
+- name: Override some systemd unit file settings
+  template:
+    src: nomad_systemd_service.override.j2
+    dest: /etc/systemd/system/nomad.service.d/user.conf
+    owner: root
+    group: root
+    mode: '644'
+  notify:
+    - systemd daemon reload
+
+- name: Flush handlers
+  meta: flush_handlers
+
+- name: Remove distribution-provided /etc/nomad.d/nomad.hcl
+  file:
+    path: /etc/nomad.d/nomad.hcl
+    state: absent

@@ -26,13 +26,22 @@
 
 - name: Include user and group settings
   include: user_group.yml
+  when:
+    - not (nomad_install_from_repo | bool)
 
 - name: Include Docker tasks
   include: docker.yml
   when: nomad_docker_enable | bool
 
-- name: Install OS packages
+- name: Install OS packages and Nomad - locally
   include: install.yml
+  when:
+    - not (nomad_install_from_repo | bool)
+
+- name: Install OS packages and Nomad - from the repository
+  include: install.yml
+  when:
+    - nomad_install_from_repo | bool
 
 - name: Disable SELinux (RHEL)
   include: selinux.yml
@@ -188,15 +197,18 @@
         group: root
         mode: 0644
       register: nomad_systemd_file
-    - block:
-      - name: reload systemd daemon
-        systemd:
-          daemon_reload: true
-      - name: Enable nomad at startup (systemd)
-        systemd:
-          name: nomad
-          enabled: yes
-      when: nomad_systemd_file.changed
+      when:
+        - not (nomad_install_from_repo | bool)
+
+    - name: reload systemd daemon
+      systemd:
+        daemon_reload: true
+      when: nomad_systemd_file.changed | default(false)
+
+    - name: Enable nomad at startup (systemd)
+      systemd:
+        name: nomad
+        enabled: yes
   when: ansible_service_mgr == "systemd"
 
 - name: Start Nomad
